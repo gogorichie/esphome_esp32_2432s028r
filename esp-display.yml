@@ -27,12 +27,12 @@ wifi:
     ssid: "Esphome05 Fallback Hotspot"
     password: !secret wifi_password
 
-psram:
-
+# Time component for display
 time:
   - platform: homeassistant
     id: ha_time
 
+# Display configuration
 spi:
   clk_pin: GPIO14
   mosi_pin: GPIO13
@@ -40,11 +40,12 @@ spi:
 
 font:
   - file: "Roboto-Bold.ttf"
+    id: font_xl
+    size: 48
+    glyphs: "0123456789:"
+  - file: "Roboto-Bold.ttf"
     id: font_large
     size: 36
-  - file: "Roboto-Medium.ttf"
-    id: font_medium
-    size: 24
   - file: "Roboto-Regular.ttf"
     id: font_small
     size: 16
@@ -52,19 +53,20 @@ font:
     id: font_tiny
     size: 12
 
-sensor:
-  - platform: homeassistant
-    id: comed_price
-    entity_id: sensor.comed_5_minute_price
 
+# Import sensors from Home Assistant
+sensor:
+  # Weather/Temperature
   - platform: homeassistant
     id: outdoor_temp
     entity_id: sensor.openweathermap_feels_like_temperature
 
+  # Office temperature
   - platform: homeassistant
     id: office_temp
     entity_id: sensor.smartthings_button_temperature
 
+  # Show these within HASS
   - platform: wifi_signal
     name: "WiFi Signal"
     update_interval: 60s
@@ -76,12 +78,22 @@ sensor:
     unit_of_measurement: "h"
     accuracy_decimals: 1
 
-text_sensor:
-  - platform: homeassistant
-    id: hvac_state
-    entity_id: climate.great_room
-    attribute: hvac_action
 
+# Import text sensors
+text_sensor:
+  # Weather condition
+  - platform: homeassistant
+    id: weather_condition
+    entity_id: sensor.openweathermap_condition
+
+  # Next calendar event
+  - platform: homeassistant
+    id: next_meeting
+    entity_id: calendar.ical_richard_s_calendar
+    attribute: message
+
+
+# Binary sensors for door status
 binary_sensor:
   - platform: homeassistant
     id: front_door
@@ -102,53 +114,76 @@ display:
     dc_pin: GPIO2
     reset_pin: GPIO33
     color_palette: 8BIT
+    invert_colors: false
     rotation: 90
     update_interval: 5s
     lambda: |-
+      // 320x240 layout: clock header / temp cards / next meeting / door pills
+      const Color CARD(32, 36, 64);
+      const Color MUTED(150, 150, 170);
+      const Color ACCENT(255, 200, 0);
+      const Color OPEN_C(200, 0, 0);
+      const Color SHUT_C(0, 110, 40);
+      const Color UNK_C(80, 80, 80);
       it.fill(COLOR_OFF);
 
-      it.strftime(160, 10, id(font_large), TextAlign::TOP_CENTER, "%I:%M %p", id(ha_time).now());
-      it.strftime(160, 50, id(font_small), TextAlign::TOP_CENTER, "%A, %B %d", id(ha_time).now());
-
-      it.line(10, 80, 310, 80);
-
-      int y = 95;
-      it.print(10, y, id(font_medium), "Electric:");
-      if (id(comed_price).has_state()) {
-        it.printf(310, y, id(font_medium), TextAlign::TOP_RIGHT, "%.1fc", id(comed_price).state);
+      // Header: big clock (no leading zero) + AM/PM, date and weather on the right
+      auto now = id(ha_time).now();
+      if (now.is_valid()) {
+        std::string t = now.strftime("%I:%M");
+        if (t[0] == '0') t.erase(0, 1);
+        int x1, y1, w, h;
+        it.get_text_bounds(10, 2, t.c_str(), id(font_xl), TextAlign::TOP_LEFT, &x1, &y1, &w, &h);
+        it.print(10, 2, id(font_xl), t.c_str());
+        it.print(10 + w + 4, 10, id(font_small), ACCENT, now.strftime("%p").c_str());
+        it.print(310, 8, id(font_small), MUTED, TextAlign::TOP_RIGHT, now.strftime("%a %b %d").c_str());
       }
-
-      y += 35;
-      it.print(10, y, id(font_medium), "Temp:");
-      if (id(office_temp).has_state()) {
-        it.printf(160, y, id(font_medium), TextAlign::TOP_CENTER, "In: %.1fF", id(office_temp).state);
+      if (id(weather_condition).has_state()) {
+        // HA conditions look like "partlycloudy" / "clear-night" / "lightning-rainy"
+        std::string c = id(weather_condition).state;
+        if (c == "partlycloudy") c = "Partly cloudy";
+        else if (c == "clear-night") c = "Clear";
+        else {
+          for (auto &ch : c) if (ch == '-') ch = ' ';
+          if (!c.empty()) c[0] = toupper(c[0]);
+        }
+        it.print(310, 32, id(font_small), TextAlign::TOP_RIGHT, c.c_str());
       }
-      if (id(outdoor_temp).has_state()) {
-        it.printf(310, y, id(font_medium), TextAlign::TOP_RIGHT, "Out: %.1fF", id(outdoor_temp).state);
-      }
+      it.line(8, 62, 312, 62, ACCENT);
 
-      y += 35;
-      it.print(10, y, id(font_medium), "HVAC:");
-      if (id(hvac_state).has_state() && id(hvac_state).state != "unavailable") {
-        it.printf(310, y, id(font_medium), TextAlign::TOP_RIGHT, "%s", id(hvac_state).state.c_str());
-      }
+      // Temperature cards
+      auto card = [&](int x, const char *label, sensor::Sensor *s) {
+        it.filled_rectangle(x, 70, 148, 68, CARD);
+        it.print(x + 8, 76, id(font_tiny), MUTED, label);
+        if (s->has_state() && !std::isnan(s->state))
+          it.printf(x + 74, 92, id(font_large), TextAlign::TOP_CENTER, "%.1f°", s->state);
+        else
+          it.print(x + 74, 92, id(font_large), MUTED, TextAlign::TOP_CENTER, "--");
+      };
+      card(8, "INSIDE", id(office_temp));
+      card(164, "OUTSIDE", id(outdoor_temp));
 
-      y += 30;
-      it.line(10, y, 310, y);
+      // Next meeting
+      it.filled_rectangle(8, 146, 304, 44, CARD);
+      it.print(16, 150, id(font_tiny), ACCENT, "NEXT UP");
+      std::string m = id(next_meeting).has_state() ? id(next_meeting).state : "";
+      if (m.empty() || m == "unavailable" || m == "unknown") m = "No meetings";
+      else if (m.length() > 34) m = m.substr(0, 31) + "...";
+      it.print(16, 166, id(font_small), m.c_str());
 
-      y += 10;
-      it.print(10, y, id(font_small), "Doors:");
-      y += 20;
+      // Door pills: green closed, red open, grey unknown
+      auto door = [&](int x, const char *name, binary_sensor::BinarySensor *d) {
+        bool known = d->has_state();
+        bool open = known && d->state;
+        it.filled_rectangle(x, 198, 96, 36, !known ? UNK_C : (open ? OPEN_C : SHUT_C));
+        it.print(x + 48, 201, id(font_tiny), TextAlign::TOP_CENTER, name);
+        it.print(x + 48, 215, id(font_small), TextAlign::TOP_CENTER, !known ? "?" : (open ? "OPEN" : "Closed"));
+      };
+      door(8, "FRONT", id(front_door));
+      door(112, "GARAGE", id(garage_door));
+      door(216, "PATIO", id(patio_door));
 
-      auto front_color = id(front_door).state ? Color(255, 0, 0) : Color(0, 255, 0);
-      it.printf(10, y, id(font_tiny), front_color, "Front: %s", id(front_door).state ? "OPEN" : "Closed");
-
-      auto garage_color = id(garage_door).state ? Color(255, 0, 0) : Color(0, 255, 0);
-      it.printf(120, y, id(font_tiny), garage_color, "Garage: %s", id(garage_door).state ? "OPEN" : "Closed");
-
-      auto patio_color = id(patio_door).state ? Color(255, 0, 0) : Color(0, 255, 0);
-      it.printf(230, y, id(font_tiny), patio_color, "Patio: %s", id(patio_door).state ? "OPEN" : "Closed");
-
+# Touchscreen
 touchscreen:
   - platform: xpt2046
     id: my_touchscreen
@@ -164,13 +199,24 @@ touchscreen:
       - light.toggle: back_light
 
 output:
+  # Backlight
   - platform: ledc
     pin: GPIO21
     id: backlight_pwm
 
-  - platform: gpio
+  # Onboard RGB LED: three discrete pins, active-low
+  - platform: ledc
     pin: GPIO4
-    id: onboard_led_gpio
+    id: led_r
+    inverted: true
+  - platform: ledc
+    pin: GPIO16
+    id: led_g
+    inverted: true
+  - platform: ledc
+    pin: GPIO17
+    id: led_b
+    inverted: true
 
 light:
   - platform: monochromatic
@@ -179,12 +225,20 @@ light:
     id: back_light
     restore_mode: ALWAYS_ON
 
-  - platform: binary
-    output: onboard_led_gpio
-    name: "Board LED"
-    id: board_led
+  # RGB LED on the back of the board
+  - platform: rgb
+    id: rgb_led
+    name: "RGB LED"
+    red: led_r
+    green: led_g
+    blue: led_b
     restore_mode: ALWAYS_OFF
 
 button:
   - platform: restart
     name: "Restart"
+
+  - platform: template
+    name: "Toggle RGB LED"
+    on_press:
+      - light.toggle: rgb_led

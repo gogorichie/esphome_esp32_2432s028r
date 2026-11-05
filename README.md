@@ -11,14 +11,14 @@ Create a dedicated desktop display providing at-a-glance access to critical smar
 ## ✨ Features
 
 The display shows:
-- **Current time & date** - Always visible clock display
-- **Real-time ComEd electricity pricing** - 5-minute pricing updates
+- **Current time & date** - Large clock header
+- **Weather condition** - Via OpenWeatherMap integration
 - **Indoor office temperature** - From SmartThings temperature sensor
 - **Outdoor "feels like" temperature** - Via OpenWeatherMap integration
-- **HVAC action state** - Current heating/cooling status
-- **Door status monitoring** - Front, garage, and patio doors with color-coded status
+- **Next calendar event** - From a Home Assistant calendar entity
+- **Door status monitoring** - Front, garage, and patio doors as green/red/grey tiles
 - **Touch-to-toggle backlight** - Tap anywhere on screen to toggle display backlight
-- **Onboard LED control** - LED exposed to Home Assistant for automations
+- **Onboard RGB LED control** - LED exposed to Home Assistant for automations
 
 ## 🛠️ Hardware
 
@@ -35,7 +35,7 @@ You can grab the same board here: [https://amzn.to/4cBAFZ0](https://amzn.to/4cBA
 - **Microcontroller:** ESP32-WROOM-32
 - **Connection:** SPI interface
 - **Backlight:** PWM-controlled LED
-- **Onboard LED:** GPIO4
+- **Onboard RGB LED:** GPIO4 (R), GPIO16 (G), GPIO17 (B), active-low
 
 ## 🏗️ Architecture
 
@@ -44,7 +44,7 @@ You can grab the same board here: [https://amzn.to/4cBAFZ0](https://amzn.to/4cBA
 - **Home Assistant API** - Native integration for entity imports
 - **OpenWeatherMap** - Weather data integration
 - **SmartThings** - Temperature sensor
-- **ComEd 5-minute pricing sensor** - Real-time electricity rates
+- **Calendar** - Next event
 - **Binary contact sensors** - Door status monitoring
 
 Everything is pulled live from Home Assistant via the native ESPHome API integration.
@@ -60,10 +60,10 @@ Before you begin, ensure you have:
 2. **ESPHome** add-on or dashboard installed in Home Assistant
 3. The ESP32 board connected via USB or available on your network
 4. The following Home Assistant entities configured:
-   - `sensor.comed_5_minute_price` - ComEd pricing sensor
    - `sensor.openweathermap_feels_like_temperature` - OpenWeatherMap integration
+   - `sensor.openweathermap_condition` - OpenWeatherMap weather condition
    - `sensor.smartthings_button_temperature` - SmartThings temperature sensor
-   - `climate.great_room` - HVAC/thermostat entity with `hvac_action` attribute
+   - `calendar.ical_richard_s_calendar` - Calendar entity (its `message` attribute is shown as the next event)
    - `binary_sensor.front_entrance_contact` - Front door sensor
    - `binary_sensor.garage_entrance_contact` - Garage door sensor
    - `binary_sensor.patio_entrance_contact` - Patio door sensor
@@ -72,7 +72,6 @@ Before you begin, ensure you have:
 
 Download and place these font files in the same directory as `esp-display.yml`:
 - `Roboto-Bold.ttf`
-- `Roboto-Medium.ttf`
 - `Roboto-Regular.ttf`
 
 You can download Roboto fonts from [Google Fonts](https://fonts.google.com/specimen/Roboto).
@@ -111,7 +110,7 @@ If your Home Assistant entity IDs differ from the defaults, edit `esp-display.ym
 3. Click **"SKIP"** (we'll use the existing configuration)
 4. Upload the `esp-display.yml` file
 5. Upload the `secrets.yaml` file
-6. Upload the three Roboto font files
+6. Upload the two Roboto font files
 7. Click **"INSTALL"**
 8. Choose your installation method:
    - **Plug into this computer** (for first-time USB install)
@@ -137,7 +136,8 @@ After successful installation:
 4. Click **"CONFIGURE"** and enter the API encryption key from your `secrets.yaml`
 5. The device will be added with entities:
    - `light.display_backlight` - Control display backlight
-   - `light.board_led` - Control onboard LED
+   - `light.rgb_led` - Control the onboard RGB LED
+   - `button.toggle_rgb_led` - Toggle the onboard RGB LED
    - `button.restart` - Restart the device
    - `sensor.wifi_signal` - WiFi signal strength
    - `sensor.uptime` - Device uptime in hours
