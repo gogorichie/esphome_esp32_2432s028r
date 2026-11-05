@@ -7,8 +7,8 @@ Copilot, and anything else that reads `AGENTS.md`) working in this repository.
 
 An [ESPHome](https://esphome.io/) configuration for a 2.4" ESP32 touchscreen
 (ILI9341 display + XPT2046 touch controller) that sits on a desk and shows
-live Home Assistant telemetry — clock, ComEd 5-minute electricity pricing,
-indoor/outdoor temperature, HVAC action state, and door contact sensors —
+live Home Assistant telemetry — clock, weather condition, indoor/outdoor
+temperature, next calendar event, and door contact sensors —
 without opening the Home Assistant app. Everything is pulled live via
 ESPHome's native Home Assistant API integration: no MQTT, no polling hacks.
 
@@ -42,13 +42,13 @@ deliverable, compiled and flashed by the ESPHome toolchain.
   real Wi-Fi/API/OTA credentials belong in a local `secrets.yaml` or the
   Home Assistant ESPHome dashboard's secrets store, never in git history.
 - **Entity IDs in `esp-display.yml` are specific to the maintainer's Home
-  Assistant instance** (`sensor.comed_5_minute_price`,
-  `climate.great_room`, `binary_sensor.front_entrance_contact`, etc.). If you
+  Assistant instance** (`sensor.openweathermap_condition`,
+  `calendar.ical_richard_s_calendar`, `binary_sensor.front_entrance_contact`, etc.). If you
   add, rename, or remove an entity the config depends on, update the
   README's "Prerequisites" entity list in the same change — the two are
   documented as a pair.
-- **Font files aren't checked in.** The three Roboto `.ttf` files
-  (`Roboto-Bold`, `Roboto-Medium`, `Roboto-Regular`) are expected to sit
+- **Font files aren't checked in.** The two Roboto `.ttf` files
+  (`Roboto-Bold`, `Roboto-Regular`) are expected to sit
   alongside `esp-display.yml` at upload time, downloaded by the user from
   Google Fonts. Don't add binary font files to the repo.
 - **Every PR merged to `main` triggers `release-on-merge.yml`**, which
